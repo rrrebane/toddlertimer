@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Toddler Timer</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: 'Arial', sans-serif;
+            -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
+        }
+
+        .timer-app {
+            background-color: #ffffff;
+            padding: 30px 20px;
+            width: 90%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-sizing: border-box;
+        }
+
+        .time-display {
+            font-size: 4.5rem; /* Slightly larger */
+            color: #FE5F55; /* Coral red from image */
+            margin-bottom: 25px;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+
+        .timer-graphic-container {
+            width: 220px; /* Slightly larger */
+            height: 220px;
+            border-radius: 50%;
+            position: relative;
+            margin-bottom: 30px;
+            overflow: hidden; /* Important for the overlay effect */
+        }
+
+        #reveal-image {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+        }
+
+        .timer-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background-color: #FE5F55; /* Coral red from image */
+            /* Start fully red, then reveal */
+            --revealed-angle: 0deg; /* JS will update this */
+            /* The gradient starts from -90deg (12 o'clock).
+               The transparent part goes from 0deg up to --revealed-angle (clockwise).
+               The rest is filled with the overlay color. */
+            background: conic-gradient(
+                from 0deg, /* Start from top (12 o'clock) */
+                transparent 0deg, /* This part is see-through (revealed image) */
+                transparent var(--revealed-angle), /* Extends up to the revealed angle */
+                #FE5F55 var(--revealed-angle), /* Then the solid color starts */
+                #FE5F55 360deg /* And continues to the end of the circle */
+            );
+        }
+
+
+        .controls {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .main-action-button {
+            width: 100%;
+            padding: 15px 0;
+            font-size: 1.2rem;
+            font-weight: 500; /* Medium weight */
+            color: #666; /* Darker grey text */
+            background-color: #fff;
+            border: 2px solid #d0d0d0; /* Grey border */
+            border-radius: 30px; /* Pill shape */
+            cursor: pointer;
+            margin-bottom: 20px;
+            transition: background-color 0.2s, color 0.2s;
+        }
+
+        .main-action-button:active {
+            background-color: #e0e0e0;
+        }
+
+        .button-row {
+            display: flex;
+            justify-content: space-between; /* Space out buttons */
+            width: 100%;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+        .button-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .control-button, .preset-button {
+            font-size: 1.1rem;
+            color: #777; /* Grey text */
+            background-color: #fff;
+            border: 1.5px solid #d0d0d0; /* Slightly thinner grey border */
+            cursor: pointer;
+            transition: background-color 0.2s, color 0.2s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .control-button:active, .preset-button:active {
+            background-color: #e7e7e7;
+        }
+
+        .circle-button {
+            width: 60px; /* Matched UI */
+            height: 60px;
+            border-radius: 50%;
+            padding: 0;
+        }
+
+        #minus-button, #plus-button {
+            font-size: 1.8rem; /* Larger + and - */
+            font-weight: 300; /* Lighter weight for symbols */
+            color: #888;
+        }
+
+        .pill-button {
+            min-width: 100px; /* Give reset button some width */
+            padding: 12px 25px; /* Adjust padding */
+            border-radius: 30px; /* Pill shape */
+            font-size: 1.1rem; /* Reset text size */
+        }
+
+        .preset-row {
+            justify-content: space-between; /* Spread preset buttons */
+        }
+
+        .preset-button {
+            font-size: 1.2rem; /* Preset number size */
+        }
+    </style>
+</head>
+<body>
+    <div class="timer-app">
+        <div class="time-display" id="time-display">00:30</div>
+
+        <div class="timer-graphic-container">
+            <img id="reveal-image" src="https://www.humaneworld.org/sites/default/files/styles/responsive_1_87_1_2900w/public/2022-07/kitten-playing-575035.jpg.webp?itok=lk2rJY-7" alt="Revealed image">
+            <div class="timer-overlay" id="timer-overlay"></div>
+        </div>
+
+        <div class="controls">
+            <button id="start-pause-button" class="main-action-button">START</button>
+
+            <div class="button-row">
+                <button id="minus-button" class="circle-button control-button">-</button>
+                <button id="reset-button" class="pill-button control-button">Reset</button>
+                <button id="plus-button" class="circle-button control-button">+</button>
+            </div>
+
+            <div class="button-row preset-row">
+                <button class="preset-button circle-button" data-time="60">1</button>
+                <button class="preset-button circle-button" data-time="120">2</button>
+                <button class="preset-button circle-button" data-time="300">5</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const timeDisplay = document.getElementById('time-display');
+            const timerOverlay = document.getElementById('timer-overlay');
+            const startPauseButton = document.getElementById('start-pause-button');
+            const minusButton = document.getElementById('minus-button');
+            const resetButton = document.getElementById('reset-button');
+            const plusButton = document.getElementById('plus-button');
+            const presetButtons = document.querySelectorAll('.preset-button');
+
+            const DEFAULT_TIME = 30; // seconds
+            const ADJUST_AMOUNT = 30; // seconds
+            const MAX_TIME = 3600; // 60 minutes
+
+            let totalConfiguredDuration = DEFAULT_TIME;
+            let currentTime = DEFAULT_TIME;
+            let durationAtStart = DEFAULT_TIME;
+            let timerInterval = null;
+            let isRunning = false;
+
+            function formatTime(seconds) {
+                const mins = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            }
+
+            function updateDisplayTime() {
+                timeDisplay.textContent = formatTime(currentTime);
+            }
+
+            function updateGraphicDisplay() {
+                let revealedAngle = 0;
+                // Calculate elapsed ratio based on the duration when the timer was started
+                if (durationAtStart > 0) {
+                    const elapsedRatio = (durationAtStart - currentTime) / durationAtStart;
+                    revealedAngle = elapsedRatio * 360;
+                } else if (currentTime === 0) { // If timer was set to 0 and "run"
+                     revealedAngle = 360; // Fully revealed
+                }
+                // Clamp angle between 0 and 360
+                revealedAngle = Math.max(0, Math.min(revealedAngle, 360));
+                timerOverlay.style.setProperty('--revealed-angle', revealedAngle + 'deg');
+            }
+
+            function setTime(newTotalSeconds) {
+                if (isRunning) {
+                    pauseTimer(); // Stop the timer if it's running
+                }
+                totalConfiguredDuration = Math.max(0, Math.min(newTotalSeconds, MAX_TIME));
+                currentTime = totalConfiguredDuration;
+                durationAtStart = totalConfiguredDuration; // This is the base for graphic calculation
+                updateDisplayTime();
+                updateGraphicDisplay(); // Update graphic to reflect new total time (overlay fully red)
+            }
+
+            function startTimer() {
+                if (isRunning || currentTime <= 0) return;
+
+                isRunning = true;
+                startPauseButton.textContent = 'PAUSE';
+                // Important: durationAtStart is set when the timer *starts* or is *reset*.
+                // If the user changes the totalConfiguredDuration while paused,
+                // and then resumes, durationAtStart should reflect the currentTime from which it's resuming.
+                // However, our setTime function already updates durationAtStart.
+                // For simplicity and consistency with "pie chart filling up for total duration":
+                // durationAtStart here uses the value of currentTime at the moment play is pressed.
+                // If time was added/removed while paused, setTime would have updated durationAtStart.
+                // So, if user sets to 5min, pauses, sets to 1min, then durationAtStart is 1min.
+                // If user sets to 5min, it runs to 4min, pauses, then current is 4min.
+                // durationAtStart for this specific run will be 4 minutes.
+                // No, this isn't right. durationAtStart should be the total time for which the pie is representing 100%.
+                // This should be totalConfiguredDuration when play is hit IF currentTime is also totalConfiguredDuration
+                // Or, if resuming, it should be the value of currentTime WHEN IT WAS PAUSED from a full duration.
+                // The current logic `durationAtStart = currentTime;` when starting/resuming is simpler:
+                // it makes the graphic fill relative to the time *remaining when start/resume is pressed*.
+                // To make it always relative to totalConfiguredDuration:
+                // durationAtStart = totalConfiguredDuration; // Set this when timer starts
+                // This is already handled by setTime. When start is pressed, durationAtStart is already totalConfiguredDuration.
+
+                timerInterval = setInterval(() => {
+                    currentTime--;
+                    updateDisplayTime();
+                    updateGraphicDisplay(); // Graphic updates based on (durationAtStart - currentTime) / durationAtStart
+
+                    if (currentTime <= 0) {
+                        pauseTimer(); // Also clears interval
+                        // Ensure graphic is fully revealed
+                        updateGraphicDisplay(); // Should show 360deg revealed
+                    }
+                }, 1000);
+            }
+
+            function pauseTimer() {
+                clearInterval(timerInterval);
+                isRunning = false;
+                startPauseButton.textContent = 'START';
+            }
+
+            function toggleTimer() {
+                if (isRunning) {
+                    pauseTimer();
+                } else {
+                    // Only start if there's time remaining or configured.
+                    if (currentTime > 0) {
+                        // If resuming, durationAtStart should be the time it was at when it was initially set/started for this segment.
+                        // The current `setTime` function sets `durationAtStart = totalConfiguredDuration`.
+                        // When resuming, `currentTime` might be less than `totalConfiguredDuration`.
+                        // The graphic should fill up based on `totalConfiguredDuration`.
+                        // So `durationAtStart` in `updateGraphicDisplay` should refer to `totalConfiguredDuration`.
+                        // Let's ensure `durationAtStart` is correctly set when resuming.
+                        // When `setTime` is called, `durationAtStart` is set to `totalConfiguredDuration`. This is correct.
+                        // When `startTimer` is called, `currentTime` might be less if it's a resume.
+                        // The `elapsedRatio` will be `(totalConfiguredDuration - currentTime) / totalConfiguredDuration`.
+                        // This means `durationAtStart` in the calculation should always be `totalConfiguredDuration`.
+                        // My current code has `durationAtStart` variable that gets set by `setTime`.
+                        // This `durationAtStart` is indeed the `totalConfiguredDuration` against which progress is measured.
+                        startTimer();
+                    } else if (totalConfiguredDuration > 0) { // If timer was 0, but a duration is configured (e.g. after reset or +)
+                        currentTime = totalConfiguredDuration; // Reset current time to full configured duration
+                        // durationAtStart is already totalConfiguredDuration from the last setTime call
+                        updateDisplayTime();
+                        updateGraphicDisplay(); // Should show 0deg revealed
+                        startTimer();
+                    }
+                }
+            }
+
+            startPauseButton.addEventListener('click', toggleTimer);
+
+            resetButton.addEventListener('click', () => {
+                setTime(DEFAULT_TIME);
+            });
+
+            minusButton.addEventListener('click', () => {
+                setTime(Math.max(0, totalConfiguredDuration - ADJUST_AMOUNT));
+            });
+
+            plusButton.addEventListener('click', () => {
+                setTime(Math.min(MAX_TIME, totalConfiguredDuration + ADJUST_AMOUNT));
+            });
+
+            presetButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const time = parseInt(button.dataset.time, 10);
+                    setTime(time);
+                });
+            });
+
+            // Initial setup
+            setTime(DEFAULT_TIME);
+        });
+    </script>
+</body>
+</html>
